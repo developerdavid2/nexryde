@@ -20,12 +20,10 @@ export async function POST(request: Request) {
   if (doesCustomerExist.data.length > 0) {
     customer = doesCustomerExist.data[0];
   } else {
-    const newCustomer = await stripe.customers.create({
+    customer = await stripe.customers.create({
       name,
       email,
     });
-
-    customer = newCustomer;
   }
 
   const ephemeralKey = await stripe.ephemeralKeys.create(

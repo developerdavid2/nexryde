@@ -1,15 +1,11 @@
 import React, { useEffect, useState } from "react";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
-import {
-  calculateDriverTimes,
-  calculateRegion,
-  generateMarkersFromData,
-} from "@/lib/map";
+import { calculateRegion, generateMarkersFromData } from "@/lib/map";
 import { useDriverStore, useLocationStore } from "@/store";
 import { Driver, MarkerData } from "@/types/type";
 import { icons } from "@/constants";
 import { useFetch } from "@/lib/fetch";
-import { ActivityIndicator, Text, View, Platform } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 
 const Map = () => {
   const {
@@ -40,7 +36,7 @@ const Map = () => {
     } catch (err) {
       console.error("Error generating markers:", err);
     }
-  }, [drivers, userLatitude, userLongitude]);
+  }, [drivers, setDrivers, userLatitude, userLongitude]);
 
   // useEffect(() => {
   //   if (
