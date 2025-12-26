@@ -1,14 +1,19 @@
 import * as SplashScreen from "expo-splash-screen";
 import { Stack } from "expo-router";
 import "react-native-reanimated";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useFonts } from "expo-font";
+import "../global.css";
+import { ClerkLoaded, ClerkProvider } from "@clerk/clerk-expo";
+import { tokenCache } from "@clerk/clerk-expo/token-cache";
+import { LogBox } from "react-native";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [loaded] = useFonts({
+  const [appReady, setAppReady] = useState(false);
+  const [loaded, error] = useFonts({
     "Jakarta-Bold": require("../assets/fonts/PlusJakartaSans-Bold.ttf"),
     "Jakarta-ExtraBold": require("../assets/fonts/PlusJakartaSans-ExtraBold.ttf"),
     "Jakarta-ExtraLight": require("../assets/fonts/PlusJakartaSans-ExtraLight.ttf"),
@@ -19,20 +24,48 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (loaded) {
-      setTimeout(() => {
-        SplashScreen.hideAsync();
-      }, 10000); // 3 seconds
+    async function prepare() {
+      try {
+        // Keep splash screen visible for at least 2 seconds
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setAppReady(true);
+      }
     }
-  }, [loaded]);
 
-  if (!loaded) {
+    if (loaded || error) {
+      prepare();
+    }
+  }, [loaded, error]);
+
+  useEffect(() => {
+    if (appReady) {
+      SplashScreen.hideAsync();
+    }
+  }, [appReady]);
+
+  if (!appReady) {
     return null;
   }
+
+  if (!loaded && !error) {
+    return null;
+  }
+
+  LogBox.ignoreLogs(["Clerk:"]);
+
   return (
-    <Stack>
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="+not-found" />
-    </Stack>
+    <ClerkProvider tokenCache={tokenCache}>
+      <ClerkLoaded>
+        <Stack>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="(root)" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+      </ClerkLoaded>
+    </ClerkProvider>
   );
 }
