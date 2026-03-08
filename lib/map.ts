@@ -1,6 +1,6 @@
 import { Driver, MarkerData } from "@/types/type";
 
-const directionsAPI = process.env.EXPO_PUBLIC_GOOGLE_API_KEY;
+// const directionsAPI = process.env.EXPO_PUBLIC_GOOGLE_API_KEY;
 
 export const generateMarkersFromData = ({
   data,
@@ -37,32 +37,22 @@ export const calculateRegion = ({
 }) => {
   if (!userLatitude || !userLongitude) {
     return {
-      latitude: 37.78825,
-      longitude: -122.4324,
+      latitude: 6.5244,
+      longitude: 3.3792,
       latitudeDelta: 0.01,
       longitudeDelta: 0.01,
     };
   }
-
-  if (!destinationLatitude || !destinationLongitude) {
-    return {
-      latitude: userLatitude,
-      longitude: userLongitude,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    };
-  }
-
-  const minLat = Math.min(userLatitude, destinationLatitude);
-  const maxLat = Math.max(userLatitude, destinationLatitude);
-  const minLng = Math.min(userLongitude, destinationLongitude);
-  const maxLng = Math.max(userLongitude, destinationLongitude);
+  const minLat = Math.min(Number(userLatitude), Number(destinationLatitude));
+  const maxLat = Math.max(Number(userLatitude), Number(destinationLatitude));
+  const minLng = Math.min(Number(userLongitude), Number(destinationLongitude));
+  const maxLng = Math.max(Number(userLongitude), Number(destinationLongitude));
 
   const latitudeDelta = (maxLat - minLat) * 1.3;
   const longitudeDelta = (maxLng - minLng) * 1.3;
 
-  const latitude = (userLatitude + destinationLatitude) / 2;
-  const longitude = (userLongitude + destinationLongitude) / 2;
+  const latitude = (userLatitude + destinationLatitude!) / 2;
+  const longitude = (userLongitude + destinationLongitude!) / 2;
 
   return {
     latitude,
@@ -93,29 +83,81 @@ export const calculateDriverTimes = async ({
   )
     return;
 
+  const ORS_API_KEY = process.env.EXPO_PUBLIC_ORS_API_KEY;
+
   try {
     const timesPromises = markers.map(async (marker) => {
+      // Order is [longitude, latitude]
       const responseToUser = await fetch(
-        `https://maps.googleapis.com/maps/api/directions/json?origin=${marker.latitude},${marker.longitude}&destination=${userLatitude},${userLongitude}&key=${directionsAPI}`,
+        `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_API_KEY}&start=${marker.longitude},${marker.latitude}&end=${userLongitude},${userLatitude}&radiuses=5000;5000`,
       );
       const dataToUser = await responseToUser.json();
-      const timeToUser = dataToUser.routes[0].legs[0].duration.value;
 
-      const responseToDestination = await fetch(
-        `https://maps.googleapis.com/maps/api/directions/json?origin=${userLatitude},${userLongitude}&destination=${destinationLatitude},${destinationLongitude}&key=${directionsAPI}`,
+      // SAFETY: Check if features exist. If not, set 0 duration.
+      const timeToUser =
+        dataToUser?.features?.[0]?.properties?.summary?.duration || 0;
+
+      const responseToDest = await fetch(
+        `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_API_KEY}&start=${userLongitude},${userLatitude}&end=${destinationLongitude},${destinationLatitude}&radiuses=5000;5000`,
       );
-      const dataToDestination = await responseToDestination.json();
-      const timeToDestination =
-        dataToDestination.routes[0].legs[0].duration.value;
+      const dataToDest = await responseToDest.json();
+      const timeToDest =
+        dataToDest?.features?.[0]?.properties?.summary?.duration || 0;
 
-      const totalTime = (timeToUser + timeToDestination) / 60;
-      const price = (totalTime * 0.5).toFixed(2);
+      const totalTimeInMinutes = (timeToUser + timeToDest) / 60;
+      const price = (totalTimeInMinutes * 0.5).toFixed(2);
 
-      return { ...marker, time: totalTime, price };
+      return { ...marker, time: totalTimeInMinutes, price };
     });
 
     return await Promise.all(timesPromises);
   } catch (error) {
-    console.error("Error calculating driver times:", error);
+    console.error("Error with OpenRouteService:", error);
+    return markers.map((m) => ({ ...m, time: 15, price: "7.50" }));
+  }
+};
+
+export const getDirections = async (
+  startLat: number,
+  startLng: number,
+  endLat: number,
+  endLng: number,
+) => {
+  const ORS_API_KEY = process.env.EXPO_PUBLIC_ORS_API_KEY;
+
+  if (!ORS_API_KEY) {
+    console.error("ORS API Key is missing");
+    return [];
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_API_KEY}&start=${startLng},${startLat}&end=${endLng},${endLat}&radiuses=5000;5000`,
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("ORS API Error:", errorData);
+      return [];
+    }
+
+    const data = await response.json();
+
+    if (!data?.features || data.features.length === 0) {
+      console.warn("No route found between these points");
+      return [];
+    }
+
+    const points = data.features[0].geometry.coordinates.map(
+      (coord: number[]) => ({
+        latitude: coord[1],
+        longitude: coord[0],
+      }),
+    );
+
+    return points;
+  } catch (error) {
+    console.error("Error fetching directions:", error);
+    return [];
   }
 };

@@ -1,3 +1,15 @@
+import Map from "@/components/Map";
+import { icons } from "@/constants";
+import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+
+import { router, usePathname } from "expo-router";
+import React, {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import {
   BackHandler,
   Image,
@@ -7,27 +19,22 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import React, {
-  ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { router, usePathname } from "expo-router";
-import { icons } from "@/constants";
-import Map from "@/components/Map";
-import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface RideLayoutProps {
   title: string;
   children: ReactNode;
   snapPoints?: string[];
+  isScrollable?: boolean;
 }
 
-const RideLayout = ({ title, snapPoints, children }: RideLayoutProps) => {
+const RideLayout = ({
+  title,
+  snapPoints,
+  children,
+  isScrollable = true,
+}: RideLayoutProps) => {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const pathname = usePathname();
 
@@ -39,11 +46,16 @@ const RideLayout = ({ title, snapPoints, children }: RideLayoutProps) => {
   // Handle keyboard events
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener("keyboardDidShow", () => {
-      bottomSheetRef.current?.snapToIndex(1);
+      // Only snap if we actually have at least 2 snap points (index 0 and 1)
+      if (memoizedSnapPoints.length > 1) {
+        bottomSheetRef.current?.snapToIndex(1);
+      }
     });
 
     const keyboardWillHide = Keyboard.addListener("keyboardDidHide", () => {
-      bottomSheetRef.current?.snapToIndex(0);
+      if (memoizedSnapPoints.length > 0) {
+        bottomSheetRef.current?.snapToIndex(0);
+      }
     });
 
     return () => {
@@ -53,7 +65,7 @@ const RideLayout = ({ title, snapPoints, children }: RideLayoutProps) => {
   }, []);
 
   const handleBackPress = useCallback(() => {
-    // ✅ Define explicit navigation routes
+    //  Define explicit navigation routes
     if (pathname === "/(root)/confirm-ride") {
       router.replace("/(root)/find-ride");
       return;
@@ -64,7 +76,7 @@ const RideLayout = ({ title, snapPoints, children }: RideLayoutProps) => {
       return;
     }
 
-    // ✅ Fallback for any other screen
+    // Fallback for any other screen
     if (router.canGoBack()) {
       router.back();
     } else {
@@ -72,7 +84,7 @@ const RideLayout = ({ title, snapPoints, children }: RideLayoutProps) => {
     }
   }, [pathname]);
 
-  // ✅ Handle Android hardware back button
+  // Handle Android hardware back button
   useEffect(() => {
     if (Platform.OS === "android") {
       const backHandler = BackHandler.addEventListener(
@@ -115,14 +127,13 @@ const RideLayout = ({ title, snapPoints, children }: RideLayoutProps) => {
           keyboardBlurBehavior="restore"
           android_keyboardInputMode="adjustResize"
         >
-          {/* ✅ Use BottomSheetView instead of BottomSheetScrollView
-              This allows children to manage their own scrolling */}
-          <BottomSheetScrollView
-            contentContainerStyle={{ padding: 20 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {children}
-          </BottomSheetScrollView>
+          {isScrollable ? (
+            <BottomSheetScrollView contentContainerStyle={{ padding: 20 }}>
+              {children}
+            </BottomSheetScrollView>
+          ) : (
+            <View style={{ flex: 1, padding: 20 }}>{children}</View>
+          )}
         </BottomSheet>
       </SafeAreaView>
     </GestureHandlerRootView>

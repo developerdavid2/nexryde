@@ -1,14 +1,15 @@
-import { FlatList, Text, View } from "react-native";
-import React from "react";
-import RideLayout from "@/components/RideLayout";
-import DriverCard from "@/components/DriverCard";
 import CustomButton from "@/components/CustomButton";
-import { router } from "expo-router";
+import DriverCard from "@/components/DriverCard";
+import RideLayout from "@/components/RideLayout";
 import { useDriverStore } from "@/store";
+import { MarkerData } from "@/types/type";
+import { BottomSheetFlatList } from "@gorhom/bottom-sheet";
+import { router } from "expo-router";
+import React from "react";
+import { Text, View } from "react-native";
 
 const ConfirmRide = () => {
   const { drivers, selectedDriver, setSelectedDriver } = useDriverStore();
-  // console.log("Drivers from COnfirm Ride", drivers);
 
   const handleSelectDriver = () => {
     if (!selectedDriver) {
@@ -20,11 +21,16 @@ const ConfirmRide = () => {
   };
 
   return (
-    <RideLayout title="Choose a Driver" snapPoints={["65%", "85%"]}>
-      <FlatList
+    <RideLayout
+      title="Choose a Driver"
+      snapPoints={["50%"]}
+      isScrollable={true}
+    >
+      <BottomSheetFlatList
         data={drivers}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => {
+        showsVerticalScrollIndicator={false}
+        keyExtractor={(item: MarkerData) => item.id.toString()}
+        renderItem={({ item }: { item: MarkerData }) => {
           return (
             <DriverCard
               item={item}
@@ -44,7 +50,7 @@ const ConfirmRide = () => {
         )}
       />
 
-      <View className="mt-5 mb-5">
+      <View className="my-5">
         <CustomButton title="Select Ride" onPress={handleSelectDriver} />
       </View>
     </RideLayout>

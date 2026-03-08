@@ -14,6 +14,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "bundleIdentifier": "com.developerdavid2.nexryde",
       "supportsTablet": true,
       "splash": {
         "image": "./assets/images/splash.png",
@@ -22,6 +23,7 @@
       }
     },
     "android": {
+      "package": "com.developerdavid2.nexryde",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -30,31 +32,28 @@
       },
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.nexryde"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "bundler": "metro",
-      "output": "server",
+      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-router",
       [
-        "expo-router",
+        "expo-build-properties",
         {
-          "origin": "https://nexryde.dev/"
+          "android": {
+            "extraMavenRepos": ["https://repo1.maven.org/maven2/"]
+          }
         }
       ],
       [
-        "expo-splash-screen",
+        "@stripe/stripe-react-native",
         {
-          "image": "./assets/images/splash.png",
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
-          "dark": {
-            "image": "./assets/images/splash.png",
-            "backgroundColor": "#000000"
-          }
+          "merchantIdentifier": "merchant.com.yourname.nexryde",
+          "enableGooglePay": true
         }
       ]
     ],
@@ -63,9 +62,11 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        "origin": "https://nexryde.dev/"
+      },
       "eas": {
-        "projectId": "dd0aef99-1aec-4479-b1b6-3ea0a75e4a63"
+        "projectId": "25b80bed-fa5a-4610-be80-489923a39ebd"
       }
     }
   }

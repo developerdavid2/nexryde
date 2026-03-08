@@ -1,138 +1,183 @@
-import React, { useEffect, useState } from "react";
-import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
-import { calculateRegion, generateMarkersFromData } from "@/lib/map";
-import { useDriverStore, useLocationStore } from "@/store";
-import { Driver, MarkerData } from "@/types/type";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import MapView, { Marker, PROVIDER_DEFAULT, Polyline } from "react-native-maps";
+
 import { icons } from "@/constants";
 import { useFetch } from "@/lib/fetch";
-import { ActivityIndicator, Platform, Text, View } from "react-native";
+import {
+  calculateDriverTimes,
+  calculateRegion,
+  generateMarkersFromData,
+  getDirections,
+} from "@/lib/map";
+import { useDriverStore, useLocationStore } from "@/store";
+import { Driver, MarkerData } from "@/types/type";
 
-const Map = () => {
-  const {
-    userLatitude,
-    userLongitude,
-    destinationLatitude,
-    destinationLongitude,
-  } = useLocationStore();
+interface MapProps {
+  initialLocation?: { latitude: number; longitude: number };
+  destinationLocation?: { latitude: number; longitude: number };
+}
 
-  const { data: drivers, loading, error } = useFetch<Driver[]>("/(api)/driver");
-  const [markers, setMarkers] = useState<MarkerData[]>([]);
+const Map = ({ initialLocation, destinationLocation }: MapProps) => {
+  const mapRef = useRef<MapView>(null);
+  const storeLocation = useLocationStore();
   const { selectedDriver, setDrivers } = useDriverStore();
 
-  useEffect(() => {
-    if (!userLatitude || !userLongitude || !drivers) {
-      return;
-    }
+  // Determine if we use Props (History) or Store (Live)
+  const userLatitude = initialLocation?.latitude || storeLocation.userLatitude;
+  const userLongitude =
+    initialLocation?.longitude || storeLocation.userLongitude;
+  const destLat =
+    destinationLocation?.latitude || storeLocation.destinationLatitude;
+  const destLon =
+    destinationLocation?.longitude || storeLocation.destinationLongitude;
 
-    try {
+  const isHistoryView = !!initialLocation;
+
+  const { data: drivers, loading } = useFetch<Driver[]>("/(api)/driver");
+
+  const [markers, setMarkers] = useState<MarkerData[]>([]);
+  const [routeCoordinates, setRouteCoordinates] = useState<
+    { latitude: number; longitude: number }[]
+  >([]);
+
+  const region = useMemo(
+    () =>
+      calculateRegion({
+        userLatitude,
+        userLongitude,
+        destinationLatitude: destLat,
+        destinationLongitude: destLon,
+      }),
+    [userLatitude, userLongitude, destLat, destLon],
+  );
+
+  // Effect 1: Generate Markers initially
+  useEffect(() => {
+    if (!isHistoryView && drivers && userLatitude && userLongitude) {
       const newMarkers = generateMarkersFromData({
-        data: drivers as Driver[],
+        data: drivers,
         userLatitude,
         userLongitude,
       });
       setMarkers(newMarkers);
-
-      setDrivers(newMarkers!);
-    } catch (err) {
-      console.error("Error generating markers:", err);
+      setDrivers(newMarkers);
     }
-  }, [drivers, setDrivers, userLatitude, userLongitude]);
+  }, [drivers, userLatitude, userLongitude, isHistoryView, setDrivers]);
 
-  // useEffect(() => {
-  //   if (
-  //     markers.length > 0 &&
-  //     destinationLatitude !== undefined &&
-  //     destinationLongitude !== undefined
-  //   ) {
-  //     calculateDriverTimes({
-  //       markers,
-  //       userLatitude,
-  //       userLongitude,
-  //       destinationLatitude,
-  //       destinationLongitude,
-  //     })
-  //       .then((drivers) => {
-  //         setDrivers(drivers as MarkerData[]);
-  //       })
-  //       .catch((err) => {
-  //         console.error("Error calculating driver times:", err);
-  //       });
-  //   }
-  // }, [
-  //   markers,
-  //   destinationLatitude,
-  //   destinationLongitude,
-  //   userLatitude,
-  //   userLongitude,
-  //   setDrivers,
-  // ]);
-
-  const region = calculateRegion({
+  // Effect 2: Calculate Driver Times and Prices
+  useEffect(() => {
+    if (!isHistoryView && markers.length > 0 && destLat && destLon) {
+      calculateDriverTimes({
+        markers,
+        userLatitude,
+        userLongitude,
+        destinationLatitude: destLat,
+        destinationLongitude: destLon,
+      }).then((updatedMarkers) => {
+        if (updatedMarkers) {
+          setDrivers(updatedMarkers as MarkerData[]);
+        }
+      });
+    }
+  }, [
+    markers.length,
+    destLat,
+    destLon,
+    isHistoryView,
+    markers,
     userLatitude,
     userLongitude,
-    destinationLatitude,
-    destinationLongitude,
-  });
+    setDrivers,
+  ]);
 
-  // Show loading state
+  // Effect 3: Route & Animation
+  useEffect(() => {
+    if (userLatitude && userLongitude && destLat && destLon) {
+      getDirections(userLatitude, userLongitude, destLat, destLon).then(
+        (coords) => {
+          setRouteCoordinates(coords || []);
+          mapRef.current?.animateToRegion(region, 1000);
+        },
+      );
+    }
+  }, [destLat, destLon, userLatitude, userLongitude, region]);
+
   if (loading || (!userLatitude && !userLongitude)) {
     return (
-      <View className="flex justify-center items-center w-full h-full">
+      <View style={styles.center}>
         <ActivityIndicator size="large" color="#000" />
-        <Text className="mt-4">Loading map...</Text>
-      </View>
-    );
-  }
-
-  // Show error state with more details
-  if (error) {
-    return (
-      <View className="flex justify-center items-center w-full h-full p-4">
-        <Text className="text-red-500 font-bold mb-2">Error Loading Map</Text>
-        <Text className="text-center">{error}</Text>
-        <Text className="text-xs text-gray-500 mt-4">
-          Check console for details
-        </Text>
-      </View>
-    );
-  }
-
-  // MapView only works on native platforms
-  if (Platform.OS === "web") {
-    return (
-      <View className="flex justify-center items-center w-full h-full">
-        <Text>Map view is only available on mobile devices</Text>
       </View>
     );
   }
 
   return (
-    <MapView
-      provider={PROVIDER_DEFAULT}
-      className="w-full h-full rounded-2xl"
-      style={{ width: "100%", height: "100%" }}
-      mapType="standard"
-      showsPointsOfInterest={false}
-      initialRegion={region}
-      showsUserLocation={true}
-      userInterfaceStyle="light"
-      customMapStyle={[]}
-    >
-      {markers.map((marker) => (
-        <Marker
-          key={marker.id}
-          coordinate={{
-            latitude: marker.latitude,
-            longitude: marker.longitude,
-          }}
-          title={marker.title}
-          image={
-            selectedDriver === marker.id ? icons.selectedMarker : icons.marker
-          }
-        />
-      ))}
-    </MapView>
+    <View style={styles.container}>
+      <MapView
+        ref={mapRef}
+        provider={PROVIDER_DEFAULT}
+        style={styles.map}
+        initialRegion={region}
+        showsUserLocation={!isHistoryView}
+        userInterfaceStyle="light"
+      >
+        {/* Driver Markers (Live Only) */}
+        {!isHistoryView &&
+          markers.map((marker) => (
+            <Marker
+              key={`driver-${marker.id}`}
+              coordinate={{
+                latitude: marker.latitude,
+                longitude: marker.longitude,
+              }}
+              image={
+                selectedDriver === marker.id
+                  ? icons.selectedMarker
+                  : icons.marker
+              }
+            />
+          ))}
+
+        {isHistoryView && (
+          <Marker
+            key="start"
+            coordinate={{ latitude: userLatitude!, longitude: userLongitude! }}
+            image={icons.marker}
+          />
+        )}
+
+        {/* Destination Point */}
+        {destLat && destLon && (
+          <Marker
+            key="dest"
+            coordinate={{ latitude: destLat, longitude: destLon }}
+            image={icons.pin}
+          />
+        )}
+
+        {/* Route Line */}
+        {routeCoordinates.length > 0 && (
+          <Polyline
+            coordinates={routeCoordinates}
+            strokeColor="#0286FF"
+            strokeWidth={3}
+          />
+        )}
+      </MapView>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  map: { width: "100%", height: "100%" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+});
 
 export default Map;

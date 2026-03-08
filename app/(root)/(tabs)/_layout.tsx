@@ -1,7 +1,7 @@
-import { Tabs } from "expo-router";
-import "react-native-reanimated";
-import { Image, ImageSourcePropType, View, Text } from "react-native";
 import { icons } from "@/constants";
+import { Tabs } from "expo-router";
+import { Image, ImageSourcePropType, Text, View } from "react-native";
+import "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const TabIcon = ({
